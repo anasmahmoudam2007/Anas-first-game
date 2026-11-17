@@ -11,7 +11,9 @@
 // (serverAvailable) lives in network.js; the fallback room is
 // src/LocalRoom.js.
 import GameScene from './scenes/GameScene.js';
-import { dressArena } from './client/NatureDressing.js';
+// NOTE: the nature dressing is intentionally NOT a static import — see the
+// dynamic import below. A missing/broken optional module must never be able
+// to abort the static import graph and take the whole boot down with it.
 
 window.__OPENGAME_BOOTED = true; // set BEFORE any async work below
 
@@ -40,9 +42,15 @@ if (!webglAvailable()) {
   try {
     const scene = new GameScene(document.getElementById('game'));
     scene.init();
-    // GLB nature dressing (downloaded CC0 set): async, non-blocking,
-    // and must never block or break boot — failures are logged only.
-    dressArena(scene).catch((err) => console.warn('[opengame] nature dressing failed:', err));
+    // GLB nature dressing (downloaded CC0 set): loaded dynamically so it is
+    // async, non-blocking, and — crucially — isolated. A static import here
+    // would make its whole dependency chain (it pulls src/tools/scatter.js)
+    // part of the boot graph: one 404 in there and main.js never runs, which
+    // is exactly how a hosting misconfiguration turns into "Failed to load
+    // the game code". Failures are logged only.
+    import('./client/NatureDressing.js')
+      .then(({ dressArena }) => dressArena(scene))
+      .catch((err) => console.warn('[opengame] nature dressing failed:', err));
     // E2E hook: browser tests (test/browser.test.py) probe the live scene via
     // window.__gameScene to assert rendering + movement internals.
     window.__gameScene = scene;

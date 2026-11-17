@@ -60,6 +60,12 @@ vercel --prod   # النشر النهائي
 - `.vercelignore` بيستبعد `test/`, `tools/`, `docs/`, `data/` وأدوات
   التطوير. **مش** بيستبعد `src/server/` لأن الكلاينت بيستورد منها أجزاء
   مشتركة (`schema`, `config`, `movement`) بتشغّل المحاكاة المحلية.
+- ⚠️ **كل الأنماط في `.vercelignore` لازم تبدأ بـ `/`** (يعني `/tools` مش
+  `tools`). النمط غير المثبّت في gitignore بيتطبق على أي مستوى في الشجرة،
+  فكلمة `tools` لوحدها شالت `src/tools/` (اللي `src/client/NatureDressing.js`
+  بيستوردها) وكلمة `textures` شالت `assets/props/*/textures`، والنتيجة إن
+  اللعبة بتقف على شاشة الدخول برسالة «Failed to load the game code».
+  `test/deploy.test.mjs` بيفرض الشرط ده عشان ميتكررش.
 
 ## الموبايل والتابلت
 
@@ -127,6 +133,16 @@ Plus `X-Content-Type-Options: nosniff`, `Referrer-Policy:
 strict-origin-when-cross-origin` and a restrictive `Permissions-Policy` on
 every response. No `X-Frame-Options`, so previews/portals can embed the game.
 
+### `.vercelignore` gotcha (root-anchoring)
+
+Every pattern must start with `/`. An un-anchored name matches at **any**
+depth in gitignore semantics: a bare `tools` line also removed
+`src/tools/` (imported by `src/client/NatureDressing.js`) and a bare
+`textures` line removed `assets/props/*/textures` — the deployed client then
+404'd its module graph and stopped at "Failed to load the game code".
+`test/deploy.test.mjs` enforces the anchoring and walks the client's import
+graph, so this cannot regress silently.
+
 ### Mobile / tablet notes
 
 - Breakpoints: tablet `≤1024px`, phone `≤600px`, landscape phone
@@ -150,6 +166,8 @@ every response. No `X-Frame-Options`, so previews/portals can embed the game.
 | Symptom | Cause / fix |
 |---|---|
 | `OFFLINE — SOLO MODE` badge forever | no server reachable — expected on a static deploy; set `env.js` `wsUrl` or use `?server=` |
-| "Failed to load the game code (CDN unreachable?)" | jsdelivr blocked on the network; run `node tools/vendor-assets.mjs` and deploy with `VENDORED_ASSETS=1` (served from `/assets/vendor`) |
+| "Failed to load the game code: src/main.js is missing…" | the deployment is incomplete — redeploy the whole repository (check `.vercelignore` anchoring) |
+| "Failed to load the game code: the jsdelivr CDN is unreachable" | jsdelivr blocked on the network; run `node tools/vendor-assets.mjs` and deploy with `VENDORED_ASSETS=1` (served from `/assets/vendor`) |
+| "Failed to load the game code: a module failed to load" | open devtools → Network and find the 404/failed module; usually a file missing from the deployment |
 | Multiplayer connects then drops immediately | server page is HTTPS but the server URL is `ws://` → use `wss://` (behind a TLS reverse proxy or a tunnel) |
 | Player can't move on a phone | touch overlay hidden by a desktop-only UA? open `?touch=1`, or confirm `pointer: coarse` matches in devtools device mode |

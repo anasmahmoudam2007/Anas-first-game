@@ -1,18 +1,23 @@
 # Files Vercel does not need for the static client deploy.
-# The Node/Colyseus game server (src/server/index.js, http.js, db, OIDC) never
-# runs on Vercel — but the browser client DOES import the shared pieces under
-# src/server/ (schema, tunables, movement math), so src/server is NOT excluded.
-node_modules
-data
-test
-tools
-docs
-.github
-cloudflared
-Dockerfile
-docker-compose.yml
-playwright-report
-*.log
-# Development docs / stray assets — never fetched by the client.
-*.md
-textures
+#
+# EVERY pattern is anchored to the repo root with a leading "/". That is not
+# cosmetic: an un-anchored name matches at ANY depth (gitignore semantics), so
+# a bare `tools` line also dropped src/tools/ — which
+# src/client/NatureDressing.js imports — and a bare `textures` line dropped
+# assets/props/*/textures (the glTF textures). The deployed client then died
+# with "Failed to load the game code" because its module graph 404'd.
+#
+# test/deploy.test.mjs enforces the anchoring, so this cannot regress.
+/node_modules
+/data
+/test
+/tools
+/docs
+/.github
+/cloudflared
+/Dockerfile
+/docker-compose.yml
+/playwright-report
+/*.log
+/*.md
+/textures

@@ -5,7 +5,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const root = new URL('..', import.meta.url);
 const read = (p) => readFileSync(new URL(p, root), 'utf8');
@@ -53,15 +54,62 @@ test('vercel.json: security headers on every path', () => {
   assert.equal(all['X-Frame-Options'], undefined);
 });
 
-test('.vercelignore: dev-only trees excluded, src/server kept', () => {
-  const ignore = read('.vercelignore').split('\n').map((l) => l.trim());
-  for (const entry of ['node_modules', 'test', 'tools', 'data', '*.md']) {
-    assert.ok(ignore.includes(entry), `${entry} should be excluded from the deploy`);
+test('.vercelignore: every pattern is root-anchored', () => {
+  const patterns = read('.vercelignore')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'));
+  assert.ok(patterns.length > 0);
+  for (const p of patterns) {
+    // gitignore semantics: an un-anchored name matches at ANY depth. That is
+    // how a bare `tools` took out src/tools/ (imported by NatureDressing.js)
+    // and a bare `textures` took out assets/props/*/textures — the deployed
+    // client then 404'd its module graph and died at boot.
+    assert.ok(p.startsWith('/'), `pattern "${p}" must be root-anchored with a leading "/"`);
   }
-  // The browser client imports src/server/{config,schema,movement}: excluding
-  // it would break the offline (LocalRoom) path on the deployed site.
-  assert.ok(!ignore.includes('src/server'), 'src/server must stay (client imports)');
-  assert.ok(!ignore.includes('assets'), 'assets must stay');
+});
+
+test('.vercelignore: dev-only trees excluded, client trees never', () => {
+  const patterns = read('.vercelignore')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'));
+  for (const entry of ['/node_modules', '/test', '/tools', '/data', '/docs']) {
+    assert.ok(patterns.includes(entry), `${entry} should be excluded from the deploy`);
+  }
+  // The browser client loads everything under src/ and assets/ — including
+  // src/server/{config,schema,movement} (offline LocalRoom) and the glTF
+  // textures under assets/props/*/textures.
+  for (const p of patterns) {
+    assert.ok(!['/src', '/assets'].some((keep) => p === keep || keep.startsWith(p + '/')),
+      `pattern "${p}" would exclude client files`);
+    assert.ok(!p.startsWith('/src') && !p.startsWith('/assets'),
+      `pattern "${p}" would exclude client files`);
+  }
+});
+
+test('client import graph resolves (every relative import exists)', () => {
+  const seen = new Set();
+  const missing = [];
+  const walk = (abs) => {
+    if (seen.has(abs)) return;
+    seen.add(abs);
+    const src = readFileSync(abs, 'utf8');
+    // static `import … from '…'` / `export … from '…'` + dynamic `import('…')`
+    const specs = [
+      ...src.matchAll(/(?:^|\s)(?:import|export)[^'"]*?from\s+['"]([^'"]+)['"]/g),
+      ...src.matchAll(/import\(\s*['"]([^'"]+)['"]\s*\)/g)
+    ].map((m) => m[1]);
+    for (const spec of specs) {
+      if (!spec.startsWith('.')) continue; // importmap/CDN bare specifier
+      const target = fileURLToPath(new URL(spec, `file://${abs}`));
+      if (!existsSync(target)) missing.push(`${abs.slice(root.pathname.length)} -> ${spec}`);
+      else walk(target);
+    }
+  };
+  walk(fileURLToPath(new URL('src/main.js', root)));
+  assert.deepEqual(missing, []);
+  assert.ok(seen.size > 50, `expected a real module graph, walked ${seen.size} files`);
 });
 
 test('env.js: valid static boot config with no hardcoded server', () => {

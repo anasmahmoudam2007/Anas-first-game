@@ -571,20 +571,51 @@
   <div id="loading">loading…</div>
 
   <!-- Boot watchdog: if the game code (CDN + modules) cannot load at all,
-       show a clear error instead of a stuck "loading…" forever. -->
+       show a clear error instead of a stuck "loading…" forever.
+       On the failure path it probes the two things that actually break a
+       deploy, so the message says which one it is:
+         1. our own src/main.js  -> a file is missing from the deployment
+            (a bad .vercelignore, a partial upload)
+         2. the jsdelivr CDN     -> blocked network / ad-blocker / firewall
+       30s instead of 20s so a slow mobile connection is not reported as an
+       error before the 1.2MB three.js bundle has a chance to arrive. -->
   <script>
-    setTimeout(function () {
-      if (window.__OPENGAME_BOOTED) return;
-      var loading = document.getElementById('loading');
-      var login = document.getElementById('login');
-      var err = document.getElementById('login-error');
-      if (loading) loading.style.display = 'none';
-      if (err) {
-        err.textContent = 'Failed to load the game code (CDN unreachable?). Check your connection and refresh.';
-        err.style.display = 'block';
+    (function () {
+      var CDN = [
+        'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js',
+        'https://cdn.jsdelivr.net/npm/@colyseus/sdk@0.17.43/dist/colyseus.js',
+        'https://cdn.jsdelivr.net/npm/@colyseus/schema@4.0.13/build/index.mjs'
+      ];
+      function reachable(url) {
+        return fetch(url, { method: 'HEAD', cache: 'no-store' })
+          .then(function (r) { return r.ok; })
+          .catch(function () { return false; });
       }
-      if (login) login.classList.add('visible');
-    }, 20000);
+      function fail(msg) {
+        var loading = document.getElementById('loading');
+        var login = document.getElementById('login');
+        var err = document.getElementById('login-error');
+        if (loading) loading.style.display = 'none';
+        if (err) { err.textContent = msg; err.style.display = 'block'; }
+        if (login) login.classList.add('visible');
+      }
+      setTimeout(function () {
+        if (window.__OPENGAME_BOOTED) return;
+        reachable('./src/main.js').then(function (selfOk) {
+          if (!selfOk) {
+            fail('Failed to load the game code: src/main.js is missing from this deployment. Redeploy the whole repository (see DEPLOY-VERCEL.md).');
+            return;
+          }
+          return Promise.all(CDN.map(reachable)).then(function (oks) {
+            if (oks.indexOf(false) !== -1) {
+              fail('Failed to load the game code: the jsdelivr CDN is unreachable from this network. Check your connection, VPN or ad-blocker, then refresh.');
+            } else {
+              fail('Failed to load the game code: a module failed to load. Hard-refresh; if it persists, open the browser console and check which URL is 404 (usually a file missing from the deployment).');
+            }
+          });
+        });
+      }, 30000);
+    })();
   </script>
   <!-- Server-injected runtime config (ws URL, renderer flags) — see src/server/http.js -->
   <script src="./env.js"></script>
