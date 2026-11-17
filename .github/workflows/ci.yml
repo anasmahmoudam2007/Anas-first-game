@@ -1,0 +1,101 @@
+# CI gate: every push/PR to master must leave the game PLAYABLE and
+# TESTABLE. The smoke job boots the real server and joins a room with a
+# real Colyseus client — a green run means the browser game works.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Postgres service (PRD-postgres-adapter.md): exercises the pg driver
+    # contract tests on every push; json default stays exercised by the
+    # whole rest of the suite.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: oc
+          POSTGRES_DB: ocdata
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U oc"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://oc@localhost:54329/ocdata
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check (every source + test file)
+        run: npm run check
+
+      - name: Unit + integration tests (headless server)
+        run: npm test
+
+      - name: Live smoke (boot real server, join over WebSocket)
+        run: npm run smoke
+
+  # P1.5: real-browser pass. The headless verify job cannot catch
+  # client-only breakage (schema API misuse, THREE scene wiring), so a
+  # real Chromium drives the same maintained regression used locally
+  # (test/browser.test.py): join -> countdown -> move, world + pvp flows.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright + Chromium
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Boot server (production entrypoint) and wait for healthz
+        run: |
+          PORT=2567 node src/server/index.js &
+          echo $! > /tmp/server.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:2567/healthz > /dev/null; then
+              echo "server healthy"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not become healthy within 30s" >&2
+          exit 1
+
+      - name: Real-browser e2e (test/browser.test.py)
+        run: python3 test/browser.test.py
+
+      - name: Stop server
+        if: always()
+        run: kill "$(cat /tmp/server.pid)" 2>/dev/null || true

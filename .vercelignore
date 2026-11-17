@@ -1,0 +1,18 @@
+# Files Vercel does not need for the static client deploy.
+# The Node/Colyseus game server (src/server/index.js, http.js, db, OIDC) never
+# runs on Vercel — but the browser client DOES import the shared pieces under
+# src/server/ (schema, tunables, movement math), so src/server is NOT excluded.
+node_modules
+data
+test
+tools
+docs
+.github
+cloudflared
+Dockerfile
+docker-compose.yml
+playwright-report
+*.log
+# Development docs / stray assets — never fetched by the client.
+*.md
+textures

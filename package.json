@@ -1,0 +1,25 @@
+{
+  "name": "opengame",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multiplayer 3D arena survival: Three.js client + Colyseus server. Server-authoritative movement, shared orbs, chasing enemies.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "serve": "node src/server/index.js",
+    "dev": "node --watch src/server/index.js",
+    "check": "node tools/check.mjs",
+    "test": "node --test test/*.test.mjs",
+    "smoke": "node tools/smoke.mjs"
+  },
+  "dependencies": {
+    "@colyseus/sdk": "0.17.43",
+    "colyseus": "0.17.10",
+    "express": "5.2.1",
+    "openid-client": "^6.8.7",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "three": "^0.185.1"
+  }
+}

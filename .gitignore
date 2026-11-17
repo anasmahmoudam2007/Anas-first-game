@@ -1,0 +1,8 @@
+# Local agent/tool session state (never part of the project).
+.zcode/
+data/
+.playwright-mcp/
+
+# Dependencies (installed locally, never committed; the client loads
+# three.js/Colyseus from the CDN importmap in index.html).
+node_modules/
