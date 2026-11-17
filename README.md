@@ -60,6 +60,21 @@ All optional; the defaults run a single-process game on :2567.
 
 ## Deployment notes
 
+- **Deploy the client on Vercel (no build step)** — `vercel.json` is
+  committed, so `vercel.com/new` → import this repo → Deploy is the whole
+  setup: no framework preset, no build command, the repo root is served as
+  static files. Vercel only serves files, so it runs the client, not the
+  Colyseus server (a long-lived Node process with WebSockets) — a Vercel
+  deployment therefore boots straight into the **browser-local solo mode**
+  and shows the `OFFLINE — SOLO MODE` badge. Multiplayer works as soon as
+  the client is pointed at a server hosted elsewhere: `wsUrl` in `env.js`,
+  a `?server=host` link, or the login-screen *game server* field.
+  `vercel.json` also carries the caching contract (`env.js` + `index.html`
+  `no-store` — a cached `env.js` would pin players to a dead server; `/src`
+  revalidates; `/assets/vendor` is immutable) and `nosniff` /
+  `Referrer-Policy` headers, while `.vercelignore` keeps tests, tools, docs
+  and dev artifacts out of the deployment.
+  Full walkthrough (Arabic + English): [`DEPLOY-VERCEL.md`](DEPLOY-VERCEL.md).
 - **Play with friends (GitHub Pages + Cloudflare Tunnel)** — the client is a
   static site, so the free GitHub Pages host serves it; your own machine
   runs the authoritative server and a Cloudflare Tunnel exposes it with a
@@ -149,6 +164,15 @@ PvP and Open World require the game server online (no offline fallback).
 | Click a character card (login) | Choose Knight / Archer / Mage / Demon |
 
 ### Mobile (touch)
+
+The page is responsive out of the box: a tablet layout (`≤1024px`), a phone
+layout (`≤600px`, compact HUD, single-column login, three upgrade cards on one
+row) and a short-landscape pass (`orientation: landscape and max-height: 520px`)
+reflow the HUD, toasts and overlays; `viewport-fit=cover` + `env(safe-area-inset-*)`
+keep the HUD and action buttons clear of notches and the home indicator, and
+`overscroll-behavior: none` stops pull-to-refresh from interrupting a joystick
+drag. Add the page to your home screen (`apple-mobile-web-app-capable`) for a
+chrome-free, full-screen view.
 
 Touch controls activate automatically on phones/tablets (or with `?touch=1`):
 
@@ -280,8 +304,13 @@ lowpass). Mute with **M**; volume persists in localStorage
 - Object pooling everywhere: orbs, power-ups and enemy meshes are fixed
   slots reused from the state arrays; particles and floating numbers come
   from `ParticlePool` / `FloatingTextPool` (no per-event allocation).
-- devicePixelRatio clamped (max 2) and shadow-map size in
-  `CONFIG.renderer`; the render loop pauses when the tab is hidden.
+- devicePixelRatio clamped and shadow-map size in `CONFIG.renderer`:
+  desktop caps at 2 / 2048², phones and tablets at 1.5 / 1024²
+  (`src/client/renderQuality.js`). On touch devices the client also samples
+  the real frame rate every 3s and steps the pixel ratio down one notch while
+  it stays under 45fps, so a thermally throttled phone settles instead of
+  dropping frames (down-only — it never flaps back up). Resize is coalesced
+  into one rAF, and the render loop pauses when the tab is hidden.
 - Client resilience: on a socket drop the sdk's automatic reconnection
   resumes the same session (server holds the seat + player state for
   `match.reconnectGraceMs`); the client shows a "connection lost —
@@ -378,7 +407,20 @@ same melee combat rules.
    - **KILL-UNTIL-DEATH** (all 4 character classes' J/K reduce enemy HP; killed
      enemies respawn elsewhere at full HP)
    - **MOVE + ATTACK** (J and K work while moving, only L blocks them)
-4. `npm run serve` + curl: the client HTML loads (200, `no-cache`), the
+4. **Vercel / static deploy** — the repo root served by a plain file server
+   (no Node): `index.html`, `env.js`, `/src/*` and `/assets/*` all answer 200
+   with the right content types, every relative import in `src/` resolves
+   (checked by `test/deploy.test.mjs` alongside the `vercel.json` cache and
+   header contract), and the client boots into the browser-local solo mode
+   when nothing answers on `wss://` — which is exactly what a Vercel
+   deployment does.
+5. **Mobile / tablet** — `test/responsive.test.mjs` locks in the viewport
+   meta, the `≤1024px` / `≤600px` / short-landscape breakpoints, the
+   safe-area insets, the "HUD never swallows joystick touches" rule and the
+   scrollable phone overlays; `test/renderQuality.test.mjs` covers the
+   device-class → DPR / shadow-map decisions and the down-only adaptive
+   ladder.
+6. `npm run serve` + curl: the client HTML loads (200, `no-cache`), the
    matchmake endpoint answers (200), the WebSocket upgrade responds (101),
    static assets (JS modules, GLBs) are served, `package.json`/`node_modules`
    return 404, `/healthz` and `/metrics` answer, and SIGTERM shuts the

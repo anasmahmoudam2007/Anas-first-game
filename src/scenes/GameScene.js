@@ -31,6 +31,7 @@ import { LocalRoom } from '../LocalRoom.js';
 import { getUpgrade, xpProgress, effectiveMaxHp } from '../shared/progression.js';
 import { stripRootMotion, frameDamp, cameraOffset, subclipAnims } from '../anim/AnimUtils.js';
 import TouchControls from '../ui/TouchControls.js';
+import { deviceClass, pickDpr, pickShadowMapSize, degradeDpr } from '../client/renderQuality.js';
 import { ChunkManager } from '../client/ChunkManager.js';
 import { Minimap } from '../ui/Minimap.js';
 import { CombatRadar } from '../ui/CombatRadar.js';
@@ -66,24 +67,54 @@ function makeRng(seed) {
   };
 }
 
+/** Desktop / tablet / phone, from the browser's own hints. Drives the pixel
+ *  ratio ceiling + shadow-map resolution (src/client/renderQuality.js). */
+function currentDeviceClass() {
+  const media = (q) => typeof matchMedia === 'function' && matchMedia(q).matches;
+  return deviceClass({
+    coarsePointer: media('(pointer: coarse)'),
+    // Touchscreen laptops match `(pointer: fine)` too — keep them on desktop.
+    finePointer: media('(any-pointer: fine)'),
+    maxTouchPoints: navigator.maxTouchPoints || 0,
+    minSide: Math.min(window.innerWidth || 1024, window.innerHeight || 1024)
+  });
+}
+
 export default class GameScene {
   constructor(container) {
     // --- Renderer (quality knobs from config, Upgrade F) -----------------
+    // Phones/tablets get a lower pixel-ratio ceiling than desktops (fill rate,
+    // not resolution, is what a mobile GPU runs out of first).
+    this.device = currentDeviceClass();
+    this._dprDegraded = false;
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.renderer.dprMax));
+    this.renderer.setPixelRatio(pickDpr({
+      devicePixelRatio: window.devicePixelRatio,
+      kind: this.device,
+      dprMax: CONFIG.renderer.dprMax,
+      dprMaxTouch: CONFIG.renderer.dprMaxTouch
+    }));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = CONFIG.renderer.shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
-    // Window resize: keep the canvas + camera aspect in sync (previously the
-    // canvas was sized once and resizing distorted the view).
-    window.addEventListener('resize', () => {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-      if (this.composer) this.composer.setSize(window.innerWidth, window.innerHeight);
-    });
+    // Window resize: keep the canvas + camera aspect in sync. Coalesced into
+    // one rAF because mobile browsers fire `resize` on every URL-bar pixel and
+    // a setSize per event burns the frame budget mid-game; `orientationchange`
+    // and visualViewport cover the iOS cases that skip a plain resize.
+    this._resizeQueued = false;
+    this._queueResize = () => {
+      if (this._resizeQueued) return;
+      this._resizeQueued = true;
+      requestAnimationFrame(() => {
+        this._resizeQueued = false;
+        this.resizeViewport();
+      });
+    };
+    window.addEventListener('resize', this._queueResize);
+    window.addEventListener('orientationchange', this._queueResize);
+    window.visualViewport?.addEventListener('resize', this._queueResize);
 
     this.scene = new THREE.Scene();
     const atm = CONFIG.atmosphere;
@@ -99,7 +130,12 @@ export default class GameScene {
     const sun = new THREE.DirectionalLight(atm.sunColor, atm.sunIntensity);
     sun.position.set(20, 30, 10);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(CONFIG.renderer.shadowMapSize, CONFIG.renderer.shadowMapSize);
+    const shadowSize = pickShadowMapSize({
+      kind: this.device,
+      shadowMapSize: CONFIG.renderer.shadowMapSize,
+      shadowMapTouch: CONFIG.renderer.shadowMapTouch
+    });
+    sun.shadow.mapSize.set(shadowSize, shadowSize);
     sun.shadow.camera.left = -35;
     sun.shadow.camera.right = 35;
     sun.shadow.camera.top = 35;
@@ -1616,10 +1652,76 @@ export default class GameScene {
     });
   }
 
+  // ===================== viewport / adaptive quality =====================
+
+  /** Fit the renderer, camera and post-processing chain to the current
+   *  viewport. Safe to call as often as needed (resize is rAF-coalesced). */
+  resizeViewport() {
+    const w = window.innerWidth || 1;
+    const h = window.innerHeight || 1;
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w, h);
+    if (this.composer) this.composer.setSize(w, h);
+    this.applyDeviceQuality();
+  }
+
+  /** Re-derive the device class (rotation can change it) and the pixel-ratio
+   *  ceiling. A ratio that the adaptive ladder already stepped down is never
+   *  raised again — see watchFrameRate(). */
+  applyDeviceQuality() {
+    this.device = currentDeviceClass();
+    const cap = pickDpr({
+      devicePixelRatio: window.devicePixelRatio,
+      kind: this.device,
+      dprMax: CONFIG.renderer.dprMax,
+      dprMaxTouch: CONFIG.renderer.dprMaxTouch
+    });
+    const current = this.renderer.getPixelRatio();
+    const dpr = this._dprDegraded ? Math.min(cap, current) : cap;
+    if (Math.abs(dpr - current) > 0.01) this.renderer.setPixelRatio(dpr);
+  }
+
+  /** Adaptive quality for phones/tablets: average the real frame rate over 3s
+   *  windows and step the pixel ratio down while it stays under
+   *  CONFIG.renderer.adaptiveFpsThreshold. Down-only, so a thermally
+   *  throttled phone settles instead of flapping between two ratios. */
+  watchFrameRate(time) {
+    if (this.device === 'desktop' || !Number.isFinite(time)) return;
+    if (this._fpsPrev == null) {
+      this._fpsPrev = time;
+      this._fpsAcc = 0;
+      this._fpsFrames = 0;
+      return;
+    }
+    const delta = time - this._fpsPrev;
+    this._fpsPrev = time;
+    if (!(delta > 0)) return; // clock reset (tab resume) — skip the sample
+    this._fpsAcc += delta;
+    this._fpsFrames++;
+    if (this._fpsAcc < 3) return;
+    const avgFps = this._fpsFrames / this._fpsAcc;
+    this._fpsAcc = 0;
+    this._fpsFrames = 0;
+    const current = this.renderer.getPixelRatio();
+    const next = degradeDpr(current, {
+      avgFps,
+      threshold: CONFIG.renderer.adaptiveFpsThreshold
+    });
+    if (next < current - 1e-3) {
+      this._dprDegraded = true;
+      this.renderer.setPixelRatio(next);
+      console.info(`[opengame] ${avgFps.toFixed(0)} fps — render scale stepped down to ${next}`);
+    }
+  }
+
   // ============================ Frame =====================================
 
   /** One render frame. dt is the clamped delta from main.js. */
-  update(dt, _time) {
+  update(dt, time) {
+    // Mobile/tablet frame-rate guard (no-op on desktop).
+    this.watchFrameRate(time);
+
     // M = mute toggle (Upgrade D).
     if (this.keys.m.justPressed) {
       this.keys.m.justPressed = false;

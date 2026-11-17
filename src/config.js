@@ -83,6 +83,13 @@ export const CONFIG = {
   // perf-verified at 60fps dpr2.
   renderer: {
     dprMax: 2,
+    // Phones/tablets report devicePixelRatio 2–3 on a small GPU; a lower
+    // ceiling keeps the frame rate playable (see src/client/renderQuality.js).
+    // adaptiveFpsThreshold: below this average FPS the client steps the pixel
+    // ratio down once on touch devices rather than dropping frames.
+    dprMaxTouch: 1.5,
+    shadowMapTouch: 1024,
+    adaptiveFpsThreshold: 45,
     shadowMapSize: 2048,
     shadows: env.shadows !== false,
     bloom: env.bloom === true,
