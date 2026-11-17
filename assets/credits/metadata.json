@@ -1,0 +1,161 @@
+{
+  "exportTimestamp": "2026-08-21T00-00-00",
+  "project": "opengame — multiplayer 3D arena",
+  "policy": "CC0 preferred; CC-BY only with attribution. No unlicensed assets.",
+  "assets": [
+    {
+      "name": "Adventurer",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/5EGWBMpuXq",
+      "license": "CC0 1.0",
+      "file": "assets/characters/adventurer.glb",
+      "role": "player character (shared by all players, tinted per player)",
+      "animations": ["CharacterArmature|Idle", "CharacterArmature|Run", "CharacterArmature|Sword_Slash"]
+    },
+    {
+      "name": "Orc",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/5vO2YJsPEf",
+      "license": "CC0 1.0",
+      "file": "assets/enemies/orc.glb",
+      "role": "enemy character (server-side AI, visual only on clients)",
+      "animations": ["CharacterArmature|Idle", "CharacterArmature|Run", "CharacterArmature|Punch", "CharacterArmature|HitReact"]
+    },
+    {
+      "name": "Tree",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/aVOxaHRPWe",
+      "license": "CC0 1.0",
+      "file": "assets/props/tree.glb",
+      "role": "arena prop (scattered deterministically on every client)",
+      "animations": []
+    },
+    {
+      "name": "Rock",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/4MUaQTcDdc",
+      "license": "CC0 1.0",
+      "file": "assets/props/rock.glb",
+      "role": "arena prop (scattered deterministically on every client)",
+      "animations": []
+    },
+    {
+      "name": "Knight",
+      "author": "Dawid2K",
+      "source": "https://poly.pizza/m/isC73B8SKq",
+      "license": "CC-BY 3.0",
+      "file": "assets/characters/knight.glb",
+      "role": "selectable player character: swordsman (static rig — procedural idle/run/swing fallback)",
+      "animations": []
+    },
+    {
+      "name": "Knight (Mixamo Paladin)",
+      "author": "Mixamo (Paladin J Nordstrom)",
+      "source": "https://www.mixamo.com",
+      "license": "Mixamo Standard license (free)",
+      "file": "assets/characters/knight_mixamo.glb",
+      "role": "selectable player character: knight with real idle/run/slash clips",
+      "animations": ["mixamorig|Idle", "mixamorig|Run", "mixamorig|Attack"]
+    },
+    {
+      "name": "Sword",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/ajOJ2NLz5m",
+      "license": "CC0 1.0",
+      "file": "assets/props/sword.glb",
+      "role": "weapon prop attached to the swordsman's right hand bone",
+      "animations": []
+    },
+    {
+      "name": "Hooded Adventurer",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/y9KWOVG21R",
+      "license": "CC0 1.0",
+      "file": "assets/characters/archer.glb",
+      "role": "selectable player character: archer (carries a procedural bow)",
+      "animations": ["CharacterArmature|Idle", "CharacterArmature|Run", "CharacterArmature|Sword_Slash"]
+    },
+    {
+      "name": "Animated Wizard",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/kttbFvCl2C",
+      "license": "CC-BY 3.0",
+      "file": "assets/characters/mage.glb",
+      "role": "selectable player character: mage",
+      "animations": ["CharacterArmature|Idle", "CharacterArmature|Run", "CharacterArmature|Staff_Attack"]
+    },
+    {
+      "name": "Demon",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/LnfIziKv4o",
+      "license": "CC0 1.0",
+      "file": "assets/characters/spike.glb",
+      "role": "selectable player character: spike man (horns + trident)",
+      "animations": ["CharacterArmature|Idle", "CharacterArmature|Run", "CharacterArmature|Punch"]
+    },
+    {
+      "name": "Grass Tuft A",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/UGTOzcO3P2",
+      "license": "CC0 1.0",
+      "file": "assets/props/grass_tuft_a.glb",
+      "role": "arena dressing: grass clump variant A (instanced)",
+      "animations": []
+    },
+    {
+      "name": "Grass Tuft B",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/vUJjrRsFp4",
+      "license": "CC0 1.0",
+      "file": "assets/props/grass_tuft_b.glb",
+      "role": "arena dressing: grass clump variant B (instanced)",
+      "animations": []
+    },
+    {
+      "name": "Tall Grass",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/JSIYtscPmP",
+      "license": "CC0 1.0",
+      "file": "assets/props/grass_tall.glb",
+      "role": "arena dressing: tall grass accents",
+      "animations": []
+    },
+    {
+      "name": "Flowers Patch",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/NBUxHir6FJ",
+      "license": "CC0 1.0",
+      "file": "assets/props/flowers_patch.glb",
+      "role": "arena dressing: flower patches alongside instanced flowers",
+      "animations": []
+    },
+    {
+      "name": "Bush A",
+      "author": "Jarlan Perez",
+      "source": "https://poly.pizza/m/d6STyhH76Qe",
+      "license": "CC-BY 3.0",
+      "file": "assets/props/bush_a.glb",
+      "role": "arena prop: low bush variant",
+      "animations": []
+    },
+    {
+      "name": "Bushes Patch",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/J2h3HrO356",
+      "license": "CC0 1.0",
+      "file": "assets/props/bushes_patch.glb",
+      "role": "arena prop: bush cluster",
+      "animations": []
+    },
+    {
+      "name": "Small Plant",
+      "author": "Quaternius",
+      "source": "https://poly.pizza/m/MZdeiQApSb",
+      "license": "CC0 1.0",
+      "file": "assets/props/small_plant.glb",
+      "role": "arena dressing: small plants near rocks",
+      "animations": []
+    }
+  ],
+  "notes": "Nature dressing set added 2026-08-21 via the Playwright-assisted download pipeline (tools/fetch-assets.mjs + tools/asset-manifest.json). Rejected during curation: Poly by Google tree stump scan and a Zsky bell flower (style clash), Poly Haven pine_tree_01 (~900 MB bundle)."
+}
