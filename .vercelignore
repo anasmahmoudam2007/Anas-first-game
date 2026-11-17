@@ -13,3 +13,6 @@ Dockerfile
 docker-compose.yml
 playwright-report
 *.log
+# Development docs / stray assets — never fetched by the client.
+*.md
+textures

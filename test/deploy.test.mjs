@@ -55,7 +55,7 @@ test('vercel.json: security headers on every path', () => {
 
 test('.vercelignore: dev-only trees excluded, src/server kept', () => {
   const ignore = read('.vercelignore').split('\n').map((l) => l.trim());
-  for (const entry of ['node_modules', 'test', 'tools', 'data']) {
+  for (const entry of ['node_modules', 'test', 'tools', 'data', '*.md']) {
     assert.ok(ignore.includes(entry), `${entry} should be excluded from the deploy`);
   }
   // The browser client imports src/server/{config,schema,movement}: excluding
